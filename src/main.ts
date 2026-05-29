@@ -31,6 +31,10 @@ declare global {
     EJS_threads: boolean;
     EJS_disableLocalStorage: boolean;
     EJS_controlScheme: string;
+    EJS_hideSettings: boolean;
+    EJS_VirtualGamepadSettings: {
+      visible: boolean;
+    };
     EJS_defaultOptions: Record<string, unknown>;
     EJS_defaultControls: Record<string, unknown>;
     EJS_ready?: () => void;
@@ -45,6 +49,9 @@ let gamepadBridgeTimer = 0;
 
 type EmulatorJsInstance = {
   callEvent?: (eventName: string) => void;
+  gameManager?: {
+    simulateInput: (player: number, input: number, value: number) => void;
+  };
   gamepad?: {
     gamepads: BrowserGamepadSnapshot[];
   };
@@ -121,6 +128,21 @@ app.innerHTML = `
           <span>WASD 方向 · Enter 选择 · 1 投币 · J/K/L 按钮</span>
         </div>
       </div>
+      <div class="mobile-controls" aria-label="手机虚拟控制器">
+        <div id="mobileDpad" class="mobile-dpad" role="group" aria-label="方向控制">
+          <img class="mobile-dpad-plate" src="/assets/rocker/plate.png" alt="" draggable="false" />
+          <img class="mobile-dpad-cross" src="/assets/rocker/gameboy_black_dpad_177.png" alt="" draggable="false" />
+        </div>
+        <div class="mobile-buttons" aria-label="动作按钮">
+          <button class="mobile-action-button mobile-action-button-1" type="button" data-virtual-input="0" aria-label="Button 1"></button>
+          <button class="mobile-action-button mobile-action-button-2" type="button" data-virtual-input="1" aria-label="Button 2"></button>
+          <button class="mobile-action-button mobile-action-button-3" type="button" data-virtual-input="8" aria-label="Button 3"></button>
+        </div>
+        <div class="mobile-system-buttons" aria-label="系统按钮">
+          <button class="mobile-system-button" type="button" data-virtual-input="3" aria-label="选择">选择</button>
+          <button class="mobile-system-button" type="button" data-virtual-input="2" aria-label="投币">投币</button>
+        </div>
+      </div>
     </section>
 
     <section class="status">
@@ -138,6 +160,13 @@ const statusText = getElement<HTMLSpanElement>("statusText");
 const gameContainer = getElement<HTMLDivElement>("game");
 
 let roms: RomEntry[] = [];
+let activeVirtualDirection: number | null = null;
+
+if (isMobileBrowser()) {
+  document.body.classList.add("is-mobile-browser");
+}
+
+installVirtualControls();
 
 loadRomList().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -243,6 +272,10 @@ function bootGame(romId: string, core: ArcadeCore): void {
   window.EJS_threads = false;
   window.EJS_disableLocalStorage = true;
   window.EJS_controlScheme = "arcade";
+  window.EJS_hideSettings = isMobileBrowser();
+  window.EJS_VirtualGamepadSettings = {
+    visible: false
+  };
   window.EJS_defaultOptions = {
     "ejs_threads": "disabled",
     "save-state-slot": 1,
@@ -362,6 +395,87 @@ function getBrowserGamepads(): BrowserGamepadSnapshot[] {
       id: gamepad.id || `Gamepad ${gamepad.index}`,
       index: gamepad.index
     }));
+}
+
+function installVirtualControls(): void {
+  const dpad = document.getElementById("mobileDpad");
+  const buttons = document.querySelectorAll<HTMLElement>("[data-virtual-input]");
+
+  dpad?.addEventListener("pointerdown", handleDpadPointer);
+  dpad?.addEventListener("pointermove", handleDpadPointer);
+  dpad?.addEventListener("pointerup", clearVirtualDirection);
+  dpad?.addEventListener("pointercancel", clearVirtualDirection);
+  dpad?.addEventListener("lostpointercapture", clearVirtualDirection);
+
+  buttons.forEach((button) => {
+    const input = Number(button.dataset.virtualInput);
+    button.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      button.setPointerCapture(event.pointerId);
+      button.classList.add("is-pressed");
+      setVirtualInput(input, 1);
+    });
+    button.addEventListener("pointerup", (event) => {
+      event.preventDefault();
+      button.classList.remove("is-pressed");
+      setVirtualInput(input, 0);
+    });
+    button.addEventListener("pointercancel", () => {
+      button.classList.remove("is-pressed");
+      setVirtualInput(input, 0);
+    });
+    button.addEventListener("lostpointercapture", () => {
+      button.classList.remove("is-pressed");
+      setVirtualInput(input, 0);
+    });
+  });
+}
+
+function handleDpadPointer(event: PointerEvent): void {
+  event.preventDefault();
+  const target = event.currentTarget as HTMLElement;
+  target.setPointerCapture(event.pointerId);
+  const rect = target.getBoundingClientRect();
+  const x = event.clientX - rect.left - rect.width / 2;
+  const y = event.clientY - rect.top - rect.height / 2;
+  const deadZone = rect.width * 0.12;
+
+  if (Math.hypot(x, y) < deadZone) {
+    setVirtualDirection(null);
+    return;
+  }
+
+  if (Math.abs(x) > Math.abs(y)) {
+    setVirtualDirection(x > 0 ? 7 : 6);
+  } else {
+    setVirtualDirection(y > 0 ? 5 : 4);
+  }
+}
+
+function setVirtualDirection(input: number | null): void {
+  if (activeVirtualDirection === input) return;
+  if (activeVirtualDirection !== null) {
+    setVirtualInput(activeVirtualDirection, 0);
+  }
+  activeVirtualDirection = input;
+  if (input !== null) {
+    setVirtualInput(input, 1);
+  }
+}
+
+function clearVirtualDirection(): void {
+  setVirtualDirection(null);
+}
+
+function setVirtualInput(input: number, value: number): void {
+  window.EJS_emulator?.gameManager?.simulateInput(0, input, value);
+}
+
+function isMobileBrowser(): boolean {
+  return (
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && window.matchMedia("(max-width: 760px)").matches)
+  );
 }
 
 function buildDefaultControls(): Record<string, unknown> {
