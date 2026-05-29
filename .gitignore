@@ -3,7 +3,3 @@ dist/
 
 .DS_Store
 *.log
-
-roms/**
-!roms/
-!roms/.gitkeep
