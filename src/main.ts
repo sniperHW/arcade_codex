@@ -125,18 +125,20 @@ app.innerHTML = `
       <div id="game" class="screen">
         <div class="empty">
           <strong>选择游戏并运行</strong>
-          <span>WASD 方向 · Enter 选择 · 1 投币 · J/K/L 按钮</span>
+          <span class="desktop-hint">WASD 方向 · Enter 选择 · 1 投币 · I/J/K/L 按钮</span>
         </div>
       </div>
       <div class="mobile-controls" aria-label="手机虚拟控制器">
+        <div id="dpadTouchZone" class="dpad-touch-zone" aria-label="方向控制触摸区域"></div>
         <div id="mobileDpad" class="mobile-dpad" role="group" aria-label="方向控制">
           <img class="mobile-dpad-plate" src="/assets/rocker/plate.png" alt="" draggable="false" />
           <img class="mobile-dpad-cross" src="/assets/rocker/gameboy_black_dpad_177.png" alt="" draggable="false" />
         </div>
         <div class="mobile-buttons" aria-label="动作按钮">
-          <button class="mobile-action-button mobile-action-button-1" type="button" data-virtual-input="0" aria-label="Button 1"></button>
-          <button class="mobile-action-button mobile-action-button-2" type="button" data-virtual-input="1" aria-label="Button 2"></button>
-          <button class="mobile-action-button mobile-action-button-3" type="button" data-virtual-input="8" aria-label="Button 3"></button>
+          <button class="mobile-action-button mobile-action-button-y" type="button" data-virtual-input="9" aria-label="Y">Y</button>
+          <button class="mobile-action-button mobile-action-button-x" type="button" data-virtual-input="0" aria-label="X">X</button>
+          <button class="mobile-action-button mobile-action-button-b" type="button" data-virtual-input="1" aria-label="B">B</button>
+          <button class="mobile-action-button mobile-action-button-a" type="button" data-virtual-input="8" aria-label="A">A</button>
         </div>
         <div class="mobile-system-buttons" aria-label="系统按钮">
           <button class="mobile-system-button" type="button" data-virtual-input="3" aria-label="选择">选择</button>
@@ -399,13 +401,76 @@ function getBrowserGamepads(): BrowserGamepadSnapshot[] {
 
 function installVirtualControls(): void {
   const dpad = document.getElementById("mobileDpad");
+  const touchZone = document.getElementById("dpadTouchZone");
+  const cross = dpad?.querySelector(".mobile-dpad-cross") as HTMLElement | null;
   const buttons = document.querySelectorAll<HTMLElement>("[data-virtual-input]");
 
-  dpad?.addEventListener("pointerdown", handleDpadPointer);
-  dpad?.addEventListener("pointermove", handleDpadPointer);
-  dpad?.addEventListener("pointerup", clearVirtualDirection);
-  dpad?.addEventListener("pointercancel", clearVirtualDirection);
-  dpad?.addEventListener("lostpointercapture", clearVirtualDirection);
+  let dpadOriginX = 0;
+  let dpadOriginY = 0;
+  let dpadDragging = false;
+  const maxCrossDisplacement = 12;
+
+  touchZone?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    touchZone.setPointerCapture(event.pointerId);
+    if (!dpad) return;
+
+    const controlsRect = (dpad.closest(".mobile-controls") as HTMLElement)?.getBoundingClientRect();
+    if (!controlsRect) return;
+
+    dpadOriginX = event.clientX;
+    dpadOriginY = event.clientY;
+    dpad.classList.remove("is-returning");
+    dpad.style.left = `${event.clientX - controlsRect.left}px`;
+    dpad.style.top = `${event.clientY - controlsRect.top}px`;
+    dpadDragging = true;
+  });
+
+  touchZone?.addEventListener("pointermove", (event) => {
+    if (!dpad || !dpadDragging) return;
+
+    const dx = event.clientX - dpadOriginX;
+    const dy = event.clientY - dpadOriginY;
+    const dist = Math.hypot(dx, dy);
+    const deadZone = 8;
+
+    if (cross && dist > 0) {
+      const clampedDist = Math.min(dist, maxCrossDisplacement);
+      const angle = Math.atan2(dy, dx);
+      cross.style.transform = `translate(${Math.cos(angle) * clampedDist}px, ${Math.sin(angle) * clampedDist}px)`;
+    }
+
+    if (dist < deadZone) {
+      setVirtualDirection(null);
+      return;
+    }
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      setVirtualDirection(dx > 0 ? 7 : 6);
+    } else {
+      setVirtualDirection(dy > 0 ? 5 : 4);
+    }
+  });
+
+  const hideDpad = () => {
+    dpadDragging = false;
+    if (dpad) {
+      dpad.classList.add("is-returning");
+      dpad.style.left = "";
+      dpad.style.top = "";
+    }
+    if (cross) {
+      cross.style.transform = "";
+    }
+    dpadOriginX = 0;
+    dpadOriginY = 0;
+    clearVirtualDirection();
+    setTimeout(() => dpad?.classList.remove("is-returning"), 250);
+  };
+
+  touchZone?.addEventListener("pointerup", hideDpad);
+  touchZone?.addEventListener("pointercancel", hideDpad);
+  touchZone?.addEventListener("lostpointercapture", hideDpad);
 
   buttons.forEach((button) => {
     const input = Number(button.dataset.virtualInput);
@@ -429,27 +494,6 @@ function installVirtualControls(): void {
       setVirtualInput(input, 0);
     });
   });
-}
-
-function handleDpadPointer(event: PointerEvent): void {
-  event.preventDefault();
-  const target = event.currentTarget as HTMLElement;
-  target.setPointerCapture(event.pointerId);
-  const rect = target.getBoundingClientRect();
-  const x = event.clientX - rect.left - rect.width / 2;
-  const y = event.clientY - rect.top - rect.height / 2;
-  const deadZone = rect.width * 0.12;
-
-  if (Math.hypot(x, y) < deadZone) {
-    setVirtualDirection(null);
-    return;
-  }
-
-  if (Math.abs(x) > Math.abs(y)) {
-    setVirtualDirection(x > 0 ? 7 : 6);
-  } else {
-    setVirtualDirection(y > 0 ? 5 : 4);
-  }
 }
 
 function setVirtualDirection(input: number | null): void {
@@ -516,14 +560,15 @@ function buildDefaultControls(): Record<string, unknown> {
     0: {
       ...blankPlayerControls,
       0: { value: "j", value2: "BUTTON_1" },
-      1: { value: "k", value2: "BUTTON_2" },
+      1: { value: "l", value2: "BUTTON_2" },
       2: { value: "1", value2: "SELECT" },
       3: { value: "enter", value2: "START" },
       4: { value: "w", value2: "DPAD_UP" },
       5: { value: "s", value2: "DPAD_DOWN" },
       6: { value: "a", value2: "DPAD_LEFT" },
       7: { value: "d", value2: "DPAD_RIGHT" },
-      8: { value: "l", value2: "BUTTON_3" },
+      8: { value: "k", value2: "BUTTON_3" },
+      9: { value: "i", value2: "BUTTON_4" },
       16: { value: "", value2: "LEFT_STICK_X:+1" },
       17: { value: "", value2: "LEFT_STICK_X:-1" },
       18: { value: "", value2: "LEFT_STICK_Y:+1" },
