@@ -1,0 +1,6 @@
+{
+  "buildStart": "local-mame2003-plus-2.0.2",
+  "options": {
+    "defaultWebGL2": false
+  }
+}

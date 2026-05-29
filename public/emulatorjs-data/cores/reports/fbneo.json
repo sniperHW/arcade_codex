@@ -1,0 +1,6 @@
+{
+  "buildStart": "local-fbneo-2.0.2",
+  "options": {
+    "defaultWebGL2": false
+  }
+}
