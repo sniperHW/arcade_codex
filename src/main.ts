@@ -7,6 +7,8 @@ type RomEntry = {
   title: string;
   core: ArcadeCore;
   playable: boolean;
+  parent?: string;
+  bios?: string;
   note?: string;
 };
 
@@ -16,6 +18,8 @@ declare global {
     EJS_core: ArcadeCore;
     EJS_gameName?: string;
     EJS_gameUrl: string;
+    EJS_gameParentUrl?: string;
+    EJS_biosUrl?: string;
     EJS_pathtodata: string;
     EJS_startOnLoaded: boolean;
     EJS_fullscreenOnLoaded: boolean;
@@ -65,9 +69,10 @@ const CORE_LABELS: Record<ArcadeCore, string> = {
 const ROM_OVERRIDES: Record<string, Partial<RomEntry>> = {
   "1942": { title: "1942", core: "fbneo", playable: true },
   bloodbro: { title: "Blood Bros.", core: "mame2003_plus", playable: true },
+  bublbust: { title: "Bubble Buster", core: "fbneo", playable: true },
   dino: { title: "Cadillacs and Dinosaurs", core: "fbneo", playable: true },
-  dinou: { title: "Cadillacs and Dinosaurs (US)", core: "fbneo", playable: true },
-  goalx3: { title: "Goal! Goal! Goal!", core: "fbneo", playable: true },
+  dinou: { title: "Cadillacs and Dinosaurs (US)", core: "fbneo", playable: true, parent: "dino" },
+  goalx3: { title: "Goal! Goal! Goal!", core: "fbneo", playable: true, bios: "neogeo" },
   heatbrl: { title: "Heated Barrel", core: "fbneo", playable: true },
   hook: { title: "Hook", core: "fbneo", playable: true },
   kof97: { title: "The King of Fighters '97", core: "fbneo", playable: true },
@@ -225,6 +230,8 @@ function bootGame(romId: string, core: ArcadeCore): void {
   window.EJS_core = core;
   window.EJS_gameName = selected.title;
   window.EJS_gameUrl = `/roms/${romId}.zip`;
+  window.EJS_gameParentUrl = selected.parent ? `/roms/${selected.parent}.zip` : undefined;
+  window.EJS_biosUrl = selected.bios ? `/roms/${selected.bios}.zip` : undefined;
   window.EJS_pathtodata = "/emulatorjs-data/";
   window.EJS_startOnLoaded = true;
   window.EJS_fullscreenOnLoaded = false;
@@ -423,6 +430,8 @@ function toRomEntry(id: string): RomEntry {
     title: override.title ?? id,
     core: override.core ?? "fbneo",
     playable: override.playable ?? false,
+    parent: override.parent,
+    bios: override.bios,
     note: override.note
   };
 }

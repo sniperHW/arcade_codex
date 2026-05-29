@@ -167,6 +167,28 @@
         return originalInitGameCore.call(this, runtimeJs, runtimeWasm, runtimeWorker);
     };
 
+    const originalDownloadGameFile = EmulatorJS.prototype.downloadGameFile;
+    EmulatorJS.prototype.downloadGameFile = async function(url, type, downloadText, decompressText) {
+        const isArcadeLike = ["arcade", "mame"].includes(this.getCore ? this.getCore(true) : config.system);
+        const shouldKeepZip = isArcadeLike && (type === "bios" || type === "parent");
+
+        if (!url || !shouldKeepZip) {
+            return originalDownloadGameFile.call(this, url, type, downloadText, decompressText);
+        }
+
+        this.textElem.innerText = downloadText;
+        const response = await fetch(url);
+        if (!response.ok) {
+            this.startGameError(this.localization("Network Error"));
+            return url;
+        }
+
+        const fileName = url.split("/").pop().split("#")[0].split("?")[0];
+        const data = new Uint8Array(await response.arrayBuffer());
+        this.gameManager.FS.writeFile(fileName, data);
+        return fileName;
+    };
+
     window.EJS_emulator = new EmulatorJS(EJS_player, config);
     window.EJS_adBlocked = (url, del) => window.EJS_emulator.adBlocked(url, del);
     if (typeof window.EJS_ready === "function") {
