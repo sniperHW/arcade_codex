@@ -45,7 +45,9 @@ declare global {
 }
 
 const PENDING_BOOT_KEY = "arcade-codex-pending-boot";
+const ACTIVE_GAME_KEY = "arcade-codex-active-game";
 let gamepadBridgeTimer = 0;
+let wakeLock: WakeLockSentinel | null = null;
 
 type EmulatorJsInstance = {
   callEvent?: (eventName: string) => void;
@@ -70,28 +72,566 @@ type BrowserGamepadSnapshot = {
 const CORE_LABELS: Record<ArcadeCore, string> = {
   fbneo: "FinalBurn Neo",
   mame2003: "MAME 2003",
-  mame2003_plus: "MAME 2003 Plus"
+  mame2003_plus: "MAME 2003 Plus",
 };
 
 const ROM_OVERRIDES: Record<string, Partial<RomEntry>> = {
+  "1941": { title: "1941", core: "mame2003_plus", playable: true },
   "1942": { title: "1942", core: "fbneo", playable: true },
+  "2020bb": {
+    title: "2020 Super Baseball",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  "3wonders": { title: "Three Wonders", core: "fbneo", playable: true },
+  alpham2: {
+    title: "Alpha Mission II",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  aodk: {
+    title: "Aggressors of Dark Kombat",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  aof3: {
+    title: "Art of Fighting 3",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  bakatono: {
+    title: "Bakatonosama Mahjong Manyuuki",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  bangbead: {
+    title: "Bang Bead",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  blazstar: {
+    title: "Blazing Star",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
   bloodbro: { title: "Blood Bros.", core: "mame2003_plus", playable: true },
+  breakers: {
+    title: "Breakers",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
   bublbust: { title: "Bubble Buster", core: "fbneo", playable: true },
+  burningf: {
+    title: "Burning Fight",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  cawing: { title: "Carrier Air Wing", core: "fbneo", playable: true },
+  ctomaday: {
+    title: "Captain Tomaday",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
   dino: { title: "Cadillacs and Dinosaurs", core: "fbneo", playable: true },
-  dinou: { title: "Cadillacs and Dinosaurs (US)", core: "fbneo", playable: true, parent: "dino" },
-  goalx3: { title: "Goal! Goal! Goal!", core: "fbneo", playable: true, bios: "neogeo" },
+  dinou: {
+    title: "Cadillacs and Dinosaurs (US)",
+    core: "fbneo",
+    playable: true,
+    parent: "dino",
+  },
+  doubledr: {
+    title: "Double Dragon",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  dynwar: { title: "Dynasty Wars", core: "fbneo", playable: true },
+  eightman: {
+    title: "Eight Man",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  fatfursp: {
+    title: "Fatal Fury Special",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  fatfury3: {
+    title: "Fatal Fury 3",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  fbfrenzy: {
+    title: "Football Frenzy",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ffight: { title: "Final Fight", core: "fbneo", playable: true },
+  forgottn: { title: "Forgotten Worlds", core: "fbneo", playable: true },
+  galaxyfg: {
+    title: "Galaxy Fight",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ganryu: { title: "Ganryu", core: "fbneo", playable: true, bios: "neogeo" },
+  garou: {
+    title: "Garou: Mark of the Wolves",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ghostlop: {
+    title: "Ghostlop",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ghouls: { title: "Ghouls 'n Ghosts", core: "fbneo", playable: true },
+  goalx3: {
+    title: "Goal! Goal! Goal!",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  gpilots: {
+    title: "Ghost Pilots",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
   heatbrl: { title: "Heated Barrel", core: "fbneo", playable: true },
   hook: { title: "Hook", core: "fbneo", playable: true },
-  kof97: { title: "The King of Fighters '97", core: "fbneo", playable: true },
-  kov2: { title: "Knights of Valour 2", core: "fbneo", playable: true },
+  jockeygp: {
+    title: "Jockey Grand Prix",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  karnovr: {
+    title: "Karnov's Revenge",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  kizuna: {
+    title: "Kizuna Encounter",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  knights: { title: "Knights of the Round", core: "fbneo", playable: true },
+  kof2000: {
+    title: "The King of Fighters 2000",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  kof94: {
+    title: "The King of Fighters '94",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  kof95: {
+    title: "The King of Fighters '95",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  kof96: {
+    title: "The King of Fighters '96",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  kof97: {
+    title: "The King of Fighters '97",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  kof98: {
+    title: "The King of Fighters '98",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  kof99: {
+    title: "The King of Fighters '99",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  kod: { title: "King of Dragons", core: "fbneo", playable: true },
+  kotm2: {
+    title: "King of the Monsters 2",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  lastbld2: {
+    title: "The Last Blade 2",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  lresort: {
+    title: "Last Resort",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  magdrop2: {
+    title: "Magical Drop II",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  magdrop3: {
+    title: "Magical Drop III",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  megaman: {
+    title: "Mega Man: The Power Battle",
+    core: "fbneo",
+    playable: true,
+  },
+  mercs: { title: "Mercs", core: "fbneo", playable: true },
+  minasan: {
+    title: "Minasan no Okagesama Desu!",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  mslug: { title: "Metal Slug", core: "fbneo", playable: true, bios: "neogeo" },
+  mslug2: {
+    title: "Metal Slug 2",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  mslug3: {
+    title: "Metal Slug 3",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  mslugx: {
+    title: "Metal Slug X",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  msword: { title: "Magic Sword", core: "fbneo", playable: true },
+  mtwins: { title: "Mega Twins", core: "fbneo", playable: true },
+  mutnat: {
+    title: "Mutation Nation",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ncombat: {
+    title: "Ninja Combat",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ncommand: {
+    title: "Ninja Commando",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  nemo: { title: "Nemo", core: "fbneo", playable: true },
+  neobombe: {
+    title: "Neo Bomberman",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  neodrift: {
+    title: "Neo Drift Out",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  neopong: { title: "Neo Pong", core: "fbneo", playable: true, bios: "neogeo" },
+  ninjamas: {
+    title: "Ninja Master's",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  nitd: {
+    title: "Nightmare in the Dark",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  overtop: { title: "Over Top", core: "fbneo", playable: true, bios: "neogeo" },
+  pang3: { title: "Pang! 3", core: "fbneo", playable: true },
+  pbobbl2n: {
+    title: "Puzzle Bobble 2",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  pnickj: { title: "Pnickies", core: "fbneo", playable: true },
+  popbounc: {
+    title: "Pop 'n Bounce",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  preisle2: {
+    title: "Prehistoric Isle 2",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  pspikes2: {
+    title: "Power Spikes II",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  punisher: { title: "The Punisher", core: "fbneo", playable: true },
+  puzzledp: {
+    title: "Puzzle de Pon!",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ragnagrd: {
+    title: "Ragnagard",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  rbff1: {
+    title: "Real Bout Fatal Fury",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  rbffspec: {
+    title: "Real Bout Fatal Fury Special",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  roboarmy: {
+    title: "Robo Army",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
   s1945: { title: "Strikers 1945", core: "fbneo", playable: true },
   s1945ii: { title: "Strikers 1945 II", core: "fbneo", playable: true },
+  s1945p: {
+    title: "Strikers 1945 Plus",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  samsho2: {
+    title: "Samurai Shodown II",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  samsho3: {
+    title: "Samurai Shodown III",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  samsho4: {
+    title: "Samurai Shodown IV",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  savagere: {
+    title: "Savage Reign",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  sengoku: { title: "Sengoku", core: "fbneo", playable: true, bios: "neogeo" },
   sf2: { title: "Street Fighter II", core: "fbneo", playable: true },
-  neogeo: { title: "Neo Geo BIOS", core: "fbneo", playable: false, note: "BIOS 文件，供 Neo Geo 游戏依赖" },
-  pgm: { title: "PGM BIOS", core: "fbneo", playable: false, note: "BIOS 文件，供 PGM 游戏依赖" }
+  sf2ce: {
+    title: "Street Fighter II': Champion Edition",
+    core: "fbneo",
+    playable: true,
+  },
+  sfzch: { title: "Street Fighter Zero: Chuu", core: "fbneo", playable: true },
+  shocktr2: {
+    title: "Shock Troopers: 2nd Squad",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  shocktro: {
+    title: "Shock Troopers",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  slammast: {
+    title: "Saturday Night Slam Masters",
+    core: "fbneo",
+    playable: true,
+  },
+  ssideki: {
+    title: "Super Sidekicks",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ssideki2: {
+    title: "Super Sidekicks 2",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ssideki3: {
+    title: "Super Sidekicks 3",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  ssideki4: {
+    title: "Super Sidekicks 4",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  stakwin: {
+    title: "Stakes Winner",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  stakwin2: {
+    title: "Stakes Winner 2",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  strider: { title: "Strider", core: "fbneo", playable: true },
+  tophuntr: {
+    title: "Top Hunter",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  trally: {
+    title: "Thrash Rally",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  turfmast: {
+    title: "Neo Turf Masters",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  twinspri: {
+    title: "Twinkle Star Sprites",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  unsquad: { title: "U.N. Squadron", core: "fbneo", playable: true },
+  varth: { title: "Varth", core: "fbneo", playable: true },
+  wakuwak7: {
+    title: "Waku Waku 7",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  wh2: {
+    title: "World Heroes 2",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  wh2j: {
+    title: "World Heroes 2 Jet",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  whp: {
+    title: "World Heroes Perfect",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  wjammers: {
+    title: "Windjammers",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  willow: { title: "Willow", core: "fbneo", playable: true },
+  wof: { title: "Warriors of Fate", core: "mame2003_plus", playable: true },
+  zedblade: {
+    title: "Zed Blade",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  zintrckb: {
+    title: "Zintrick",
+    core: "fbneo",
+    playable: true,
+    bios: "neogeo",
+  },
+  zupapa: { title: "Zupapa!", core: "fbneo", playable: true, bios: "neogeo" },
+  neogeo: {
+    title: "Neo Geo BIOS",
+    core: "fbneo",
+    playable: false,
+    note: "BIOS 文件，供 Neo Geo 游戏依赖",
+  },
+  pgm: {
+    title: "PGM BIOS",
+    core: "fbneo",
+    playable: false,
+    note: "BIOS 文件，供 PGM 游戏依赖",
+  },
 };
 
-const BIOS_SUFFIXES = ["bios", "naomi", "sys", "taito", "konami", "cpzn", "megaplay", "megatech"];
+const BIOS_SUFFIXES = [
+  "bios",
+  "naomi",
+  "sys",
+  "taito",
+  "konami",
+  "cpzn",
+  "megaplay",
+  "megatech",
+];
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -103,7 +643,7 @@ app.innerHTML = `
   <main class="shell">
     <section class="toolbar" aria-label="模拟器控制">
       <div class="brand">
-        <h1>Arcade Codex</h1>
+        <h1>Arcade</h1>
         <p>800x600 browser arcade runtime</p>
       </div>
       <div class="controls">
@@ -114,7 +654,11 @@ app.innerHTML = `
         <label>
           Core
           <select id="coreSelect">
-            ${Object.entries(CORE_LABELS).map(([core, label]) => `<option value="${core}">${label}</option>`).join("")}
+            ${Object.entries(CORE_LABELS)
+              .map(
+                ([core, label]) => `<option value="${core}">${label}</option>`,
+              )
+              .join("")}
           </select>
         </label>
         <button id="runButton" type="button">运行</button>
@@ -180,7 +724,9 @@ romSelect.addEventListener("change", () => {
   const selected = getSelectedRom();
   if (!selected) return;
   coreSelect.value = selected.core;
-  statusText.textContent = selected.note ?? `${selected.title} 将使用 ${CORE_LABELS[selected.core]} 核心。`;
+  statusText.textContent =
+    selected.note ??
+    `${selected.title} 将使用 ${CORE_LABELS[selected.core]} 核心。`;
 });
 
 runButton.addEventListener("click", () => {
@@ -203,11 +749,12 @@ async function loadRomList(): Promise<void> {
     .map((rom) => `<option value="${rom.id}">${rom.title}</option>`)
     .join("");
 
-  const firstPlayable = playableRoms[0];
-  if (firstPlayable) {
-    romSelect.value = firstPlayable.id;
-    coreSelect.value = firstPlayable.core;
-    statusText.textContent = `已载入 ${roms.length} 个 ROM，当前选择 ${firstPlayable.title}。`;
+  const defaultRom =
+    playableRoms.find((rom) => rom.id === "1941") ?? playableRoms[0];
+  if (defaultRom) {
+    romSelect.value = defaultRom.id;
+    coreSelect.value = defaultRom.core;
+    statusText.textContent = `已载入 ${roms.length} 个 ROM，当前选择 ${defaultRom.title}。`;
     bootPendingGame();
   } else {
     statusText.textContent = "没有找到可直接运行的游戏 ROM。";
@@ -227,18 +774,41 @@ function requestBoot(romId: string, core: ArcadeCore): void {
 
 function bootPendingGame(): void {
   const pendingBoot = sessionStorage.getItem(PENDING_BOOT_KEY);
-  if (!pendingBoot) return;
-
-  sessionStorage.removeItem(PENDING_BOOT_KEY);
-  try {
-    const boot = JSON.parse(pendingBoot) as { romId: string; core: ArcadeCore };
-    if (roms.some((rom) => rom.id === boot.romId && rom.playable)) {
-      romSelect.value = boot.romId;
-      coreSelect.value = boot.core;
-      bootGame(boot.romId, boot.core);
+  if (pendingBoot) {
+    sessionStorage.removeItem(PENDING_BOOT_KEY);
+    try {
+      const boot = JSON.parse(pendingBoot) as {
+        romId: string;
+        core: ArcadeCore;
+      };
+      if (roms.some((rom) => rom.id === boot.romId && rom.playable)) {
+        romSelect.value = boot.romId;
+        coreSelect.value = boot.core;
+        bootGame(boot.romId, boot.core);
+      }
+    } catch {
+      statusText.textContent = "恢复游戏启动状态失败，请重新选择 ROM。";
     }
-  } catch {
-    statusText.textContent = "恢复游戏启动状态失败，请重新选择 ROM。";
+    return;
+  }
+
+  const activeGame = sessionStorage.getItem(ACTIVE_GAME_KEY);
+  if (activeGame) {
+    sessionStorage.removeItem(ACTIVE_GAME_KEY);
+    try {
+      const game = JSON.parse(activeGame) as {
+        romId: string;
+        core: ArcadeCore;
+      };
+      if (roms.some((rom) => rom.id === game.romId && rom.playable)) {
+        romSelect.value = game.romId;
+        coreSelect.value = game.core;
+        statusText.textContent = `正在恢复 ${roms.find((r) => r.id === game.romId)?.title}...`;
+        bootGame(game.romId, game.core);
+      }
+    } catch {
+      sessionStorage.removeItem(ACTIVE_GAME_KEY);
+    }
   }
 }
 
@@ -252,6 +822,8 @@ function bootGame(romId: string, core: ArcadeCore): void {
   statusText.textContent = `正在启动 ${selected.title} (${CORE_LABELS[core]})...`;
   gameContainer.replaceChildren();
 
+  sessionStorage.setItem(ACTIVE_GAME_KEY, JSON.stringify({ romId, core }));
+
   const player = document.createElement("div");
   player.id = "emulator";
   player.className = "emulator";
@@ -261,7 +833,9 @@ function bootGame(romId: string, core: ArcadeCore): void {
   window.EJS_core = core;
   window.EJS_gameName = selected.title;
   window.EJS_gameUrl = `/roms/${romId}.zip`;
-  window.EJS_gameParentUrl = selected.parent ? `/roms/${selected.parent}.zip` : undefined;
+  window.EJS_gameParentUrl = selected.parent
+    ? `/roms/${selected.parent}.zip`
+    : undefined;
   window.EJS_biosUrl = selected.bios ? `/roms/${selected.bios}.zip` : undefined;
   window.EJS_pathtodata = "/emulatorjs-data/";
   window.EJS_startOnLoaded = true;
@@ -272,19 +846,19 @@ function bootGame(romId: string, core: ArcadeCore): void {
   window.EJS_language = "en-US";
   window.EJS_disableAutoLang = false;
   window.EJS_threads = false;
-  window.EJS_disableLocalStorage = true;
+  window.EJS_disableLocalStorage = false;
   window.EJS_controlScheme = "arcade";
   window.EJS_hideSettings = isMobileBrowser();
-  window.EJS_VirtualGamepadSettings = {
-    visible: false
-  };
   window.EJS_defaultOptions = {
-    "ejs_threads": "disabled",
+    ejs_threads: "disabled",
     "save-state-slot": 1,
-    "rewind": false
+    rewind: false,
   };
   window.EJS_defaultControls = buildDefaultControls();
-  window.EJS_ready = installGamepadBridge;
+  window.EJS_ready = () => {
+    installGamepadBridge();
+    installAudioResumeHandler();
+  };
 
   loadCoreRuntime(core)
     .then(() => {
@@ -294,10 +868,12 @@ function bootGame(romId: string, core: ArcadeCore): void {
       loader.src = `${window.EJS_pathtodata}loader.js`;
       loader.async = true;
       loader.onerror = () => {
-        statusText.textContent = "模拟器核心加载失败，请检查 /emulatorjs-data/ 本地文件是否完整。";
+        statusText.textContent =
+          "模拟器核心加载失败，请检查 /emulatorjs-data/ 本地文件是否完整。";
       };
       loader.onload = () => {
         statusText.textContent = `${selected.title} 已加载。`;
+        requestWakeLock();
       };
       document.body.append(loader);
     })
@@ -311,12 +887,17 @@ function loadCoreRuntime(core: ArcadeCore): Promise<void> {
   const runtimeName = `${core}_libretro.js`;
   const runtimeUrl = `/emulatorjs-data/cores/runtime/${runtimeName}`;
 
-  if (window.EJS_Runtime && document.querySelector(`script[data-core-runtime="${core}"]`)) {
+  if (
+    window.EJS_Runtime &&
+    document.querySelector(`script[data-core-runtime="${core}"]`)
+  ) {
     return Promise.resolve();
   }
 
   delete window.EJS_Runtime;
-  document.querySelectorAll<HTMLScriptElement>("script[data-core-runtime]").forEach((script) => script.remove());
+  document
+    .querySelectorAll<HTMLScriptElement>("script[data-core-runtime]")
+    .forEach((script) => script.remove());
 
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
@@ -336,6 +917,12 @@ function loadCoreRuntime(core: ArcadeCore): Promise<void> {
 }
 
 function installGamepadBridge(): void {
+  console.log(
+    "[gamepad] secure context:",
+    window.isSecureContext,
+    "getGamepads:",
+    !!navigator.getGamepads,
+  );
   clearInterval(gamepadBridgeTimer);
   syncGamepadsToEmulator();
   gamepadBridgeTimer = window.setInterval(syncGamepadsToEmulator, 500);
@@ -343,31 +930,60 @@ function installGamepadBridge(): void {
   window.addEventListener("gamepaddisconnected", syncGamepadsToEmulator);
 }
 
+function installAudioResumeHandler(): void {
+  if (!isMobileBrowser()) return;
+
+  const tryClickResume = () => {
+    for (const btn of document.querySelectorAll<HTMLButtonElement>(
+      ".ejs_popup_container .ejs_menu_button",
+    )) {
+      if (btn.textContent?.toLowerCase().includes("resume")) {
+        btn.click();
+      }
+    }
+  };
+
+  const onInteraction = () => {
+    tryClickResume();
+    const timer = window.setInterval(tryClickResume, 300);
+    setTimeout(() => clearInterval(timer), 3000);
+  };
+
+  document.addEventListener("touchstart", onInteraction, {
+    once: true,
+    passive: true,
+  });
+  document.addEventListener("click", onInteraction, { once: true });
+}
+
 function syncGamepadsToEmulator(): void {
   const emulator = window.EJS_emulator;
-  if (!emulator?.gamepad || !emulator.gamepadLabels || !emulator.gamepadSelection || !emulator.updateGamepadLabels) {
+  if (
+    !emulator?.gamepad ||
+    !emulator.gamepadLabels ||
+    !emulator.gamepadSelection ||
+    !emulator.updateGamepadLabels
+  ) {
     return;
   }
 
   const detectedGamepads = getBrowserGamepads();
 
-  if (emulator.gamepad.gamepads.length > 0) {
-    if (!emulator.gamepadSelection[0]) {
-      const first = emulator.gamepad.gamepads[0];
-      emulator.gamepadSelection[0] = `${first.id}_${first.index}`;
-    }
-    emulator.updateGamepadLabels();
-    return;
-  }
+  if (detectedGamepads.length === 0) return;
 
-  if (detectedGamepads.length > 0 && !emulator.gamepadSelection[0]) {
+  if (!emulator.gamepadSelection[0]) {
     const first = detectedGamepads[0];
     emulator.gamepadSelection[0] = `${first.id}_${first.index}`;
   }
 
-  for (let playerIndex = 0; playerIndex < emulator.gamepadLabels.length; playerIndex++) {
+  for (
+    let playerIndex = 0;
+    playerIndex < emulator.gamepadLabels.length;
+    playerIndex++
+  ) {
     const select = emulator.gamepadLabels[playerIndex];
-    const selectedValue = emulator.gamepadSelection[playerIndex] || "notconnected";
+    const selectedValue =
+      emulator.gamepadSelection[playerIndex] || "notconnected";
     select.innerHTML = "";
 
     const notConnected = document.createElement("option");
@@ -384,26 +1000,44 @@ function syncGamepadsToEmulator(): void {
 
     select.value = selectedValue;
   }
+
+  emulator.updateGamepadLabels();
 }
 
 function getBrowserGamepads(): BrowserGamepadSnapshot[] {
-  const rawGamepads = navigator.getGamepads ? Array.from(navigator.getGamepads()) : [];
+  if (!navigator.getGamepads) return [];
 
-  return rawGamepads
+  const raw = navigator.getGamepads();
+  //console.log("[gamepad] raw slots:", raw.length, "entries:", raw.map((g) => g ? `${g.id} (idx:${g.index})` : "null"));
+
+  const gamepads = Array.from(raw)
     .filter((gamepad): gamepad is Gamepad => Boolean(gamepad))
     .map((gamepad) => ({
       axes: Array.from(gamepad.axes),
-      buttons: Array.from(gamepad.buttons, (button) => ({ pressed: button.pressed })),
+      buttons: Array.from(gamepad.buttons, (button) => ({
+        pressed: button.pressed,
+      })),
       id: gamepad.id || `Gamepad ${gamepad.index}`,
-      index: gamepad.index
+      index: gamepad.index,
     }));
+
+  if (gamepads.length > 0) {
+    console.log(
+      "[gamepad] detected:",
+      gamepads.map((g) => g.id),
+    );
+  }
+
+  return gamepads;
 }
 
 function installVirtualControls(): void {
   const dpad = document.getElementById("mobileDpad");
   const touchZone = document.getElementById("dpadTouchZone");
   const cross = dpad?.querySelector(".mobile-dpad-cross") as HTMLElement | null;
-  const buttons = document.querySelectorAll<HTMLElement>("[data-virtual-input]");
+  const buttons = document.querySelectorAll<HTMLElement>(
+    "[data-virtual-input]",
+  );
 
   let dpadOriginX = 0;
   let dpadOriginY = 0;
@@ -415,7 +1049,9 @@ function installVirtualControls(): void {
     touchZone.setPointerCapture(event.pointerId);
     if (!dpad) return;
 
-    const controlsRect = (dpad.closest(".mobile-controls") as HTMLElement)?.getBoundingClientRect();
+    const controlsRect = (
+      dpad.closest(".mobile-controls") as HTMLElement
+    )?.getBoundingClientRect();
     if (!controlsRect) return;
 
     dpadOriginX = event.clientX;
@@ -518,7 +1154,8 @@ function setVirtualInput(input: number, value: number): void {
 function isMobileBrowser(): boolean {
   return (
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
-    (navigator.maxTouchPoints > 1 && window.matchMedia("(max-width: 760px)").matches)
+    (navigator.maxTouchPoints > 1 &&
+      window.matchMedia("(max-width: 760px)").matches)
   );
 }
 
@@ -553,7 +1190,7 @@ function buildDefaultControls(): Record<string, unknown> {
     26: { value: "" },
     27: { value: "" },
     28: { value: "" },
-    29: { value: "" }
+    29: { value: "" },
   };
 
   return {
@@ -572,17 +1209,18 @@ function buildDefaultControls(): Record<string, unknown> {
       16: { value: "", value2: "LEFT_STICK_X:+1" },
       17: { value: "", value2: "LEFT_STICK_X:-1" },
       18: { value: "", value2: "LEFT_STICK_Y:+1" },
-      19: { value: "", value2: "LEFT_STICK_Y:-1" }
+      19: { value: "", value2: "LEFT_STICK_Y:-1" },
     },
     1: { ...blankPlayerControls },
     2: { ...blankPlayerControls },
-    3: { ...blankPlayerControls }
+    3: { ...blankPlayerControls },
   };
 }
 
 function toRomEntry(id: string): RomEntry {
   const override = ROM_OVERRIDES[id] ?? {};
-  const looksLikeBios = BIOS_SUFFIXES.some((token) => id.includes(token)) || id.endsWith("_bios");
+  const looksLikeBios =
+    BIOS_SUFFIXES.some((token) => id.includes(token)) || id.endsWith("_bios");
 
   return {
     id,
@@ -591,7 +1229,7 @@ function toRomEntry(id: string): RomEntry {
     playable: override.playable ?? false,
     parent: override.parent,
     bios: override.bios,
-    note: override.note
+    note: override.note,
   };
 }
 
@@ -609,14 +1247,49 @@ function getElement<T extends HTMLElement>(id: string): T {
 
 function removeExistingLoader(): void {
   document
-    .querySelectorAll<HTMLScriptElement>('script[data-emulatorjs-loader="true"], script[src$="/loader.js"]')
+    .querySelectorAll<HTMLScriptElement>(
+      'script[data-emulatorjs-loader="true"], script[src$="/loader.js"]',
+    )
     .forEach((script) => script.remove());
 }
 
 function hasLoadedEmulatorRuntime(): boolean {
   return Boolean(
     window.EmulatorJS ||
-      window.EJS_emulator ||
-      document.querySelector('script[src$="/emulator.min.js"], script[data-emulatorjs-loader="true"]')
+    window.EJS_emulator ||
+    document.querySelector(
+      'script[src$="/emulator.min.js"], script[data-emulatorjs-loader="true"]',
+    ),
   );
 }
+
+async function requestWakeLock(): Promise<void> {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+  } catch {
+    // Wake lock may fail (e.g. low power mode), ignore
+  }
+}
+
+function releaseWakeLock(): void {
+  if (wakeLock) {
+    wakeLock.release();
+    wakeLock = null;
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (
+    document.visibilityState === "visible" &&
+    sessionStorage.getItem(ACTIVE_GAME_KEY)
+  ) {
+    requestWakeLock();
+  }
+});
+
+window.addEventListener("pagehide", () => {
+  // ACTIVE_GAME_KEY is already in sessionStorage for auto-resume.
+  // Release wake lock synchronously.
+  releaseWakeLock();
+});

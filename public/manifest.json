@@ -1,0 +1,8 @@
+{
+  "name": "Arcade",
+  "short_name": "Arcade",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0c0a",
+  "theme_color": "#0b0c0a"
+}

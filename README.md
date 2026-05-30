@@ -1,4 +1,4 @@
-# Arcade Codex
+# Arcade
 
 Browser arcade launcher built with TypeScript, Vite, and a locally hosted EmulatorJS runtime.
 

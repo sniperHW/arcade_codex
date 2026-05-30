@@ -294,6 +294,7 @@ body.is-mobile-browser .emulator canvas {
 
 body.is-mobile-browser .ejs_menu_bar,
 body.is-mobile-browser .ejs_context_menu,
+body.is-mobile-browser .ejs_popup_container h4,
 body.is-mobile-browser .ejs_virtualGamepad_parent,
 body.is-mobile-browser .ejs_virtualGamepad_top,
 body.is-mobile-browser .ejs_virtualGamepad_bottom,
