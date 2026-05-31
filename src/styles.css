@@ -37,7 +37,7 @@ select {
 
 .shell {
     display: grid;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto 1fr auto;
     gap: 16px;
     align-content: start;
     min-height: 100vh;
@@ -50,7 +50,7 @@ select {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    width: min(100%, 1040px);
+    width: min(100%, 1400px);
     margin: 0 auto;
 }
 
@@ -109,12 +109,187 @@ button:disabled {
     cursor: not-allowed;
 }
 
+.game-area {
+    display: flex;
+    gap: 16px;
+    width: min(100%, 1400px);
+    margin: 0 auto;
+}
+
+.rom-gallery {
+    width: 232px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.gallery-slider {
+    position: relative;
+}
+
+.gallery-scroll {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+}
+
+.gallery-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.gallery-search input {
+    width: 100%;
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid #3c4538;
+    border-radius: 6px;
+    color: #f4f7ef;
+    background: #171c15;
+    font: inherit;
+    font-size: 14px;
+}
+
+.gallery-search input::placeholder {
+    color: #6b7466;
+}
+
+.gallery-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: calc(100vh - 160px);
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #3c4538 transparent;
+}
+
+.gallery-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.gallery-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.gallery-scroll::-webkit-scrollbar-thumb {
+    background: #3c4538;
+    border-radius: 3px;
+}
+
+.rom-card {
+    flex-shrink: 0;
+    width: 100%;
+    scroll-snap-align: start;
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #0f110d;
+    transition: border-color 0.15s;
+}
+
+.rom-card:hover {
+    border-color: #4a6235;
+}
+
+.rom-card.selected {
+    border-color: #7a9f45;
+}
+
+.rom-card-image {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: #0a0b09;
+}
+
+.rom-card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: pixelated;
+}
+
+.rom-card-fallback {
+    display: none;
+    position: absolute;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    color: #9da896;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    background: linear-gradient(135deg, #1a1d18, #0f110d);
+}
+
+.rom-card-title {
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #c8d0c2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.slider-arrow {
+    position: absolute;
+    top: 35%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 28px;
+    height: 36px;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #e0e6db;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    opacity: 0;
+}
+
+.gallery-slider:hover .slider-arrow {
+    opacity: 1;
+}
+
+.slider-arrow:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.slider-prev {
+    left: 4px;
+}
+
+.slider-next {
+    right: 4px;
+}
+
+.slider-info {
+    text-align: center;
+    padding: 4px 0;
+    color: #7a8474;
+    font-size: 12px;
+}
+
 .cabinet {
     position: relative;
     display: grid;
     place-items: center;
-    width: min(100%, 1040px);
-    margin: 0 auto;
+    flex: 1;
+    min-width: 0;
     padding: 22px;
     border: 1px solid #2c3129;
     border-radius: 8px;
@@ -128,8 +303,8 @@ button:disabled {
     place-items: center;
     width: 800px;
     height: 600px;
-    max-width: calc(100vw - 92px);
-    max-height: calc((100vw - 92px) * 0.75);
+    max-width: calc(100vw - 340px);
+    max-height: calc((100vw - 340px) * 0.75);
     overflow: hidden;
     border: 1px solid #1f241d;
     background: #020302;
@@ -174,6 +349,10 @@ button:disabled {
     display: none;
 }
 
+.rom-select-mobile {
+    display: none;
+}
+
 @media (max-width: 760px) {
     .shell {
         padding: 14px;
@@ -186,13 +365,17 @@ button:disabled {
 
     .controls {
         display: grid;
-        grid-template-columns: 1fr 1fr auto;
+        grid-template-columns: 1fr auto;
         align-items: end;
     }
 
-    select {
-        min-width: 0;
+    .game-area {
+        flex-direction: column;
+    }
+
+    .rom-gallery {
         width: 100%;
+        max-height: none;
     }
 
     .cabinet {
@@ -202,6 +385,8 @@ button:disabled {
     .screen {
         max-width: calc(100vw - 48px);
         max-height: calc((100vw - 48px) * 0.75);
+        width: 800px;
+        height: 600px;
     }
 }
 
@@ -234,6 +419,18 @@ body.is-mobile-browser .toolbar {
 
 body.is-mobile-browser .brand {
     display: none;
+}
+
+body.is-mobile-browser .rom-select-mobile {
+    display: grid;
+}
+
+body.is-mobile-browser .rom-gallery {
+    display: none;
+}
+
+body.is-mobile-browser .game-area {
+    display: block;
 }
 
 body.is-mobile-browser .controls {

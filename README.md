@@ -1,5 +1,7 @@
 # Arcade
 
+
+
 Browser arcade launcher built with TypeScript, Vite, and a locally hosted EmulatorJS runtime.
 
 The app loads playable arcade ROM ZIPs from `roms/`, renders the emulator in an `800x600` screen, and uses local EmulatorJS core assets so it can run without fetching the emulator from a CDN.
@@ -21,9 +23,13 @@ The app loads playable arcade ROM ZIPs from `roms/`, renders the emulator in an 
 | Up / Down / Left / Right | `W` / `S` / `A` / `D` |
 | Start / Select | `Enter` |
 | Insert coin | `1` |
-| Button 1 | `J` |
-| Button 2 | `K` |
-| Button 3 | `L` |
+| Button Y | `I` |
+| Button X | `J` |
+| Button B | `L` |
+| Button A | `K` |
+![demo](demo.gif)
+
+
 
 Gamepads are handled through the browser Gamepad API. Press any button on the controller after opening the page, then check EmulatorJS `Control Settings` if you need to remap inputs.
 

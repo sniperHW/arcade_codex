@@ -121,7 +121,7 @@ const ROM_OVERRIDES: Record<string, Partial<RomEntry>> = {
     playable: true,
     bios: "neogeo",
   },
-  bloodbro: { title: "Blood Bros.", core: "mame2003_plus", playable: true },
+  bloodbro: { title: "Blood Bros.", core: "fbneo", playable: true },
   breakers: {
     title: "Breakers",
     core: "fbneo",
@@ -647,9 +647,9 @@ app.innerHTML = `
         <p>800x600 browser arcade runtime</p>
       </div>
       <div class="controls">
-        <label>
+        <label class="rom-select-mobile">
           ROM
-          <select id="romSelect"></select>
+          <select id="romSelectMobile"></select>
         </label>
         <label>
           Core
@@ -665,28 +665,41 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="cabinet">
-      <div id="game" class="screen">
-        <div class="empty">
-          <strong>选择游戏并运行</strong>
-          <span class="desktop-hint">WASD 方向 · Enter 选择 · 1 投币 · I/J/K/L 按钮</span>
+    <section class="game-area">
+      <aside class="rom-gallery" aria-label="游戏列表">
+        <div class="gallery-search">
+          <input type="text" id="romSearch" placeholder="搜索游戏..." />
         </div>
-      </div>
-      <div class="mobile-controls" aria-label="手机虚拟控制器">
-        <div id="dpadTouchZone" class="dpad-touch-zone" aria-label="方向控制触摸区域"></div>
-        <div id="mobileDpad" class="mobile-dpad" role="group" aria-label="方向控制">
-          <img class="mobile-dpad-plate" src="/assets/rocker/plate.png" alt="" draggable="false" />
-          <img class="mobile-dpad-cross" src="/assets/rocker/gameboy_black_dpad_177.png" alt="" draggable="false" />
+        <div class="gallery-slider">
+          <button class="slider-arrow slider-prev" id="sliderPrev" type="button">‹</button>
+          <div class="gallery-scroll" id="galleryScroll"></div>
+          <button class="slider-arrow slider-next" id="sliderNext" type="button">›</button>
         </div>
-        <div class="mobile-buttons" aria-label="动作按钮">
-          <button class="mobile-action-button mobile-action-button-y" type="button" data-virtual-input="9" aria-label="Y">Y</button>
-          <button class="mobile-action-button mobile-action-button-x" type="button" data-virtual-input="0" aria-label="X">X</button>
-          <button class="mobile-action-button mobile-action-button-b" type="button" data-virtual-input="1" aria-label="B">B</button>
-          <button class="mobile-action-button mobile-action-button-a" type="button" data-virtual-input="8" aria-label="A">A</button>
+        <div class="slider-info" id="sliderInfo"></div>
+      </aside>
+      <div class="cabinet">
+        <div id="game" class="screen">
+          <div class="empty">
+            <strong>选择游戏并运行</strong>
+            <span class="desktop-hint">WASD 方向 · Enter 选择 · 1 投币 · I/J/K/L 按钮</span>
+          </div>
         </div>
-        <div class="mobile-system-buttons" aria-label="系统按钮">
-          <button class="mobile-system-button" type="button" data-virtual-input="3" aria-label="选择">选择</button>
-          <button class="mobile-system-button" type="button" data-virtual-input="2" aria-label="投币">投币</button>
+        <div class="mobile-controls" aria-label="手机虚拟控制器">
+          <div id="dpadTouchZone" class="dpad-touch-zone" aria-label="方向控制触摸区域"></div>
+          <div id="mobileDpad" class="mobile-dpad" role="group" aria-label="方向控制">
+            <img class="mobile-dpad-plate" src="/assets/rocker/plate.png" alt="" draggable="false" />
+            <img class="mobile-dpad-cross" src="/assets/rocker/gameboy_black_dpad_177.png" alt="" draggable="false" />
+          </div>
+          <div class="mobile-buttons" aria-label="动作按钮">
+            <button class="mobile-action-button mobile-action-button-y" type="button" data-virtual-input="9" aria-label="Y">Y</button>
+            <button class="mobile-action-button mobile-action-button-x" type="button" data-virtual-input="0" aria-label="X">X</button>
+            <button class="mobile-action-button mobile-action-button-b" type="button" data-virtual-input="1" aria-label="B">B</button>
+            <button class="mobile-action-button mobile-action-button-a" type="button" data-virtual-input="8" aria-label="A">A</button>
+          </div>
+          <div class="mobile-system-buttons" aria-label="系统按钮">
+            <button class="mobile-system-button" type="button" data-virtual-input="3" aria-label="选择">选择</button>
+            <button class="mobile-system-button" type="button" data-virtual-input="2" aria-label="投币">投币</button>
+          </div>
         </div>
       </div>
     </section>
@@ -699,13 +712,27 @@ app.innerHTML = `
   </main>
 `;
 
-const romSelect = getElement<HTMLSelectElement>("romSelect");
 const coreSelect = getElement<HTMLSelectElement>("coreSelect");
 const runButton = getElement<HTMLButtonElement>("runButton");
 const statusText = getElement<HTMLSpanElement>("statusText");
 const gameContainer = getElement<HTMLDivElement>("game");
+const galleryScroll = getElement<HTMLDivElement>("galleryScroll");
+const romSearch = getElement<HTMLInputElement>("romSearch");
+const romSelectMobile = document.getElementById(
+  "romSelectMobile",
+) as HTMLSelectElement | null;
+const sliderPrev = document.getElementById(
+  "sliderPrev",
+) as HTMLButtonElement | null;
+const sliderNext = document.getElementById(
+  "sliderNext",
+) as HTMLButtonElement | null;
+const sliderInfo = document.getElementById(
+  "sliderInfo",
+) as HTMLDivElement | null;
 
 let roms: RomEntry[] = [];
+let selectedRomId: string | null = null;
 let activeVirtualDirection: number | null = null;
 
 if (isMobileBrowser()) {
@@ -720,19 +747,54 @@ loadRomList().catch((error: unknown) => {
   runButton.disabled = true;
 });
 
-romSelect.addEventListener("change", () => {
-  const selected = getSelectedRom();
-  if (!selected) return;
-  coreSelect.value = selected.core;
-  statusText.textContent =
-    selected.note ??
-    `${selected.title} 将使用 ${CORE_LABELS[selected.core]} 核心。`;
+romSearch.addEventListener("input", () => {
+  filterGallery(romSearch.value.toLowerCase().trim());
+  scrollToSelected();
+});
+
+sliderPrev?.addEventListener("click", () => {
+  navigateSlider(-1);
+});
+
+sliderNext?.addEventListener("click", () => {
+  navigateSlider(1);
+});
+
+galleryScroll.addEventListener("scroll", () => {
+  const cards = galleryScroll.querySelectorAll<HTMLElement>(
+    ".rom-card:not([style*='display: none'])",
+  );
+  if (cards.length === 0) return;
+  const scrollLeft = galleryScroll.scrollLeft;
+  const cardWidth = (cards[0] as HTMLElement).offsetWidth || 1;
+  const index = Math.round(scrollLeft / cardWidth);
+  const clampedIndex = Math.min(Math.max(index, 0), cards.length - 1);
+  const card = cards[clampedIndex];
+  if (card?.dataset.romId && card.dataset.romId !== selectedRomId) {
+    selectedRomId = card.dataset.romId;
+    const rom = roms.find((r) => r.id === selectedRomId);
+    if (rom) {
+      coreSelect.value = rom.core;
+      if (romSelectMobile) romSelectMobile.value = selectedRomId;
+      galleryScroll.querySelectorAll<HTMLElement>(".rom-card").forEach((c) => {
+        c.classList.toggle("selected", c.dataset.romId === selectedRomId);
+      });
+      statusText.textContent =
+        rom.note ?? `${rom.title} 将使用 ${CORE_LABELS[rom.core]} 核心。`;
+      updateSliderInfo(clampedIndex, cards.length);
+    }
+  }
+});
+
+romSelectMobile?.addEventListener("change", () => {
+  if (romSelectMobile.value) {
+    selectRom(romSelectMobile.value);
+  }
 });
 
 runButton.addEventListener("click", () => {
-  const selected = getSelectedRom();
-  if (!selected) return;
-  requestBoot(selected.id, coreSelect.value as ArcadeCore);
+  if (!selectedRomId) return;
+  requestBoot(selectedRomId, coreSelect.value as ArcadeCore);
 });
 
 async function loadRomList(): Promise<void> {
@@ -745,15 +807,18 @@ async function loadRomList(): Promise<void> {
   roms = ids.map(toRomEntry);
   const playableRoms = roms.filter((rom) => rom.playable);
 
-  romSelect.innerHTML = playableRoms
-    .map((rom) => `<option value="${rom.id}">${rom.title}</option>`)
-    .join("");
+  renderGallery(playableRoms);
+
+  if (romSelectMobile) {
+    romSelectMobile.innerHTML = playableRoms
+      .map((rom) => `<option value="${rom.id}">${rom.title}</option>`)
+      .join("");
+  }
 
   const defaultRom =
     playableRoms.find((rom) => rom.id === "1941") ?? playableRoms[0];
   if (defaultRom) {
-    romSelect.value = defaultRom.id;
-    coreSelect.value = defaultRom.core;
+    selectRom(defaultRom.id);
     statusText.textContent = `已载入 ${roms.length} 个 ROM，当前选择 ${defaultRom.title}。`;
     bootPendingGame();
   } else {
@@ -782,7 +847,7 @@ function bootPendingGame(): void {
         core: ArcadeCore;
       };
       if (roms.some((rom) => rom.id === boot.romId && rom.playable)) {
-        romSelect.value = boot.romId;
+        selectRom(boot.romId);
         coreSelect.value = boot.core;
         bootGame(boot.romId, boot.core);
       }
@@ -801,7 +866,7 @@ function bootPendingGame(): void {
         core: ArcadeCore;
       };
       if (roms.some((rom) => rom.id === game.romId && rom.playable)) {
-        romSelect.value = game.romId;
+        selectRom(game.romId);
         coreSelect.value = game.core;
         statusText.textContent = `正在恢复 ${roms.find((r) => r.id === game.romId)?.title}...`;
         bootGame(game.romId, game.core);
@@ -1234,7 +1299,144 @@ function toRomEntry(id: string): RomEntry {
 }
 
 function getSelectedRom(): RomEntry | undefined {
-  return roms.find((rom) => rom.id === romSelect.value);
+  if (!selectedRomId) return undefined;
+  return roms.find((rom) => rom.id === selectedRomId);
+}
+
+function renderGallery(playableRoms: RomEntry[]): void {
+  galleryScroll.innerHTML = playableRoms
+    .map(
+      (rom) => `
+    <div class="rom-card" data-rom-id="${rom.id}" tabindex="0">
+      <div class="rom-card-image">
+        <img src="/images/roms/${rom.id}.png" alt="${rom.title}" loading="lazy" />
+        <div class="rom-card-fallback">${rom.title}</div>
+      </div>
+      <div class="rom-card-title">${rom.title}</div>
+    </div>`,
+    )
+    .join("");
+
+  galleryScroll.addEventListener("click", (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>(".rom-card");
+    if (card?.dataset.romId) {
+      selectRom(card.dataset.romId);
+    }
+  });
+
+  galleryScroll.addEventListener("dblclick", (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>(".rom-card");
+    if (card?.dataset.romId) {
+      selectRom(card.dataset.romId);
+      requestBoot(card.dataset.romId, coreSelect.value as ArcadeCore);
+    }
+  });
+
+  galleryScroll.addEventListener(
+    "error",
+    (e) => {
+      const img = e.target as HTMLImageElement;
+      if (img.tagName === "IMG") {
+        img.style.display = "none";
+        const fallback = img.nextElementSibling as HTMLElement;
+        if (fallback) fallback.style.display = "flex";
+      }
+    },
+    true,
+  );
+}
+
+function selectRom(romId: string): void {
+  selectedRomId = romId;
+  const rom = roms.find((r) => r.id === romId);
+  if (!rom) return;
+  coreSelect.value = rom.core;
+  if (romSelectMobile) romSelectMobile.value = romId;
+
+  galleryScroll.querySelectorAll<HTMLElement>(".rom-card").forEach((card) => {
+    card.classList.toggle("selected", card.dataset.romId === romId);
+  });
+
+  const selectedCard = galleryScroll.querySelector<HTMLElement>(
+    `.rom-card[data-rom-id="${romId}"]`,
+  );
+  if (selectedCard) {
+    galleryScroll.scrollTo({
+      left: selectedCard.offsetLeft,
+      behavior: "smooth",
+    });
+  }
+
+  updateSliderInfoFromRom(romId);
+
+  statusText.textContent =
+    rom.note ?? `${rom.title} 将使用 ${CORE_LABELS[rom.core]} 核心。`;
+}
+
+function filterGallery(query: string): void {
+  const cards = galleryScroll.querySelectorAll<HTMLElement>(".rom-card");
+  cards.forEach((card) => {
+    const title = card.querySelector(".rom-card-title")?.textContent ?? "";
+    const romId = card.dataset.romId ?? "";
+    const match =
+      !query ||
+      title.toLowerCase().includes(query) ||
+      romId.toLowerCase().includes(query);
+    card.style.display = match ? "" : "none";
+  });
+}
+
+function navigateSlider(direction: number): void {
+  const cards = galleryScroll.querySelectorAll<HTMLElement>(
+    ".rom-card:not([style*='display: none'])",
+  );
+  if (cards.length === 0) return;
+  const currentCard = galleryScroll.querySelector<HTMLElement>(
+    `.rom-card[data-rom-id="${selectedRomId}"]`,
+  );
+  const currentIndex = currentCard ? Array.from(cards).indexOf(currentCard) : 0;
+  const newIndex = Math.min(
+    Math.max(currentIndex + direction, 0),
+    cards.length - 1,
+  );
+  const targetCard = cards[newIndex];
+  if (targetCard?.dataset.romId) {
+    selectRom(targetCard.dataset.romId);
+  }
+}
+
+function scrollToSelected(): void {
+  const selectedCard = galleryScroll.querySelector<HTMLElement>(
+    `.rom-card[data-rom-id="${selectedRomId}"]`,
+  );
+  if (selectedCard && selectedCard.style.display !== "none") {
+    galleryScroll.scrollTo({
+      left: selectedCard.offsetLeft,
+      behavior: "smooth",
+    });
+  } else {
+    const first = galleryScroll.querySelector<HTMLElement>(
+      ".rom-card:not([style*='display: none'])",
+    );
+    if (first?.dataset.romId) selectRom(first.dataset.romId);
+  }
+}
+
+function updateSliderInfo(current: number, total: number): void {
+  if (!sliderInfo) return;
+  sliderInfo.textContent = `${current + 1} / ${total}`;
+}
+
+function updateSliderInfoFromRom(romId: string): void {
+  if (!sliderInfo) return;
+  const cards = galleryScroll.querySelectorAll<HTMLElement>(
+    ".rom-card:not([style*='display: none'])",
+  );
+  const allCards = galleryScroll.querySelectorAll<HTMLElement>(".rom-card");
+  const index = Array.from(allCards).findIndex(
+    (c) => c.dataset.romId === romId,
+  );
+  updateSliderInfo(index >= 0 ? index : 0, cards.length);
 }
 
 function getElement<T extends HTMLElement>(id: string): T {
