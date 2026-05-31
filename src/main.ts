@@ -135,6 +135,7 @@ const ROM_OVERRIDES: Record<string, Partial<RomEntry>> = {
     playable: true,
     bios: "neogeo",
   },
+  captcomm: { title: "Captain Commando", core: "fbneo", playable: true },
   cawing: { title: "Carrier Air Wing", core: "fbneo", playable: true },
   ctomaday: {
     title: "Captain Tomaday",
