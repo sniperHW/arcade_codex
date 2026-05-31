@@ -96,3 +96,7 @@ The local `loader.js` and `emulator.min.js` include compatibility patches for th
 ## Legal Note
 
 This project does not grant rights to any ROM, BIOS, game asset, trademark, or copyrighted game software. Only use ROMs and BIOS files that you are legally allowed to use.
+
+## ROM Download
+
+Download the complete ROM set from https://pan.baidu.com/s/1iyrv_vqcHBlLDtiWjrkk3g?pwd=5rp7
