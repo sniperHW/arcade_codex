@@ -27,11 +27,11 @@ The app loads playable arcade ROM ZIPs from `roms/`, renders the emulator in an 
 | Button X | `J` |
 | Button B | `L` |
 | Button A | `K` |
-![demo](demo.gif)
-
-
 
 Gamepads are handled through the browser Gamepad API. Press any button on the controller after opening the page, then check EmulatorJS `Control Settings` if you need to remap inputs.
+
+![demo](demo.gif)
+
 
 ## Quick Start
 
